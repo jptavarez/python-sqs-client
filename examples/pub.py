@@ -21,19 +21,27 @@ publisher = build_publisher(
     region_name=config['region_name']
 )
 
-messages = []
-for i in range(0, 10):
-    print("Sending message...")
-    message = RequestMessage(
-        body='Hello world!!' + str(i),
-        queue_url=config['queue_url'],
-        reply_queue=reply_queue
-    )
-    publisher.send_message(message)
-    messages.append(message)
+def main():
+    messages = []
+    for i in range(0, 10):
+        print("Sending message...")
+        message = RequestMessage(
+            body='Hello world!!' + str(i),
+            queue_url=config['queue_url'],
+            reply_queue=reply_queue
+        )
+        publisher.send_message(message)
+        messages.append(message)
 
-for message in messages:
-    response = message.get_response(timeout=5)
-    print(response.body)
+    try:
+        for message in messages:
+            response = message.get_response(timeout=20)
+            print(response.body)
+    except Exception as e:
+        print("The temporary queue created by the subscriber does not currently exist")
+    finally:
+        reply_queue.remove_queue()
 
-reply_queue.remove_queue()
+if __name__ == "__main__":
+    main()
+    pass
