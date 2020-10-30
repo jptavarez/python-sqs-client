@@ -1,12 +1,6 @@
 from sqs_client.factories import build_reply_queue, build_publisher
 from sqs_client.message import RequestMessage
-
-config = {
-    "access_key": "AKIAYXEGDMMFMWNKCVCE",
-    "secret_key": "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",
-    "queue_url": "https://sqs.us-east-1.amazonaws.com/599429178122/myqueue01",
-    "region_name": "us-east-1"
-}
+import config
 
 # creates queue, deletes queue, listens to queue, receives messages from queue, adds messages to self._messages
 # has a subscriber.
@@ -24,6 +18,7 @@ publisher = build_publisher(
     secret_key=config['secret_key'],
     region_name=config['region_name']
 )
+
 def main():
     messages = []
     for i in range(0, 5):
