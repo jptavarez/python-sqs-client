@@ -3,7 +3,7 @@ from logging import exception
 
 from sqs_client.message import RequestMessage, MessageList
 from sqs_client.contracts import (
-    MessageHandler, 
+    MessageHandler,
     SqsConnection,
     Publisher,
     Subscriber as SubscriberBase,
@@ -16,21 +16,22 @@ class Subscriber(SubscriberBase):
         self._connection = sqs_connection
         self._queue_url = queue_url
         self._max_number_of_messages = max_number_of_messages
-    
+
     def set_queue(self, queue_url):
         self._queue_url = queue_url
 
+    # is called by MessagePller.start which is an endless loop
     def receive_messages(self, return_none=False, message_attribute_names=[]):
         while True:
             messages = self._connection.client.receive_message(
-                QueueUrl=self._queue_url, 
+                QueueUrl=self._queue_url,
                 MaxNumberOfMessages=self._max_number_of_messages,
                 MessageAttributeNames=message_attribute_names
             )
             if 'Messages' in messages:
                 yield MessageList(self._connection.client, self._queue_url, messages)
             elif return_none:
-                yield None     
+                yield None
 
     def chunk(self, num_messages=500, limit_seconds=30):
         """
@@ -52,7 +53,7 @@ class Subscriber(SubscriberBase):
                 messages_received = message_list
             elif message_list:
                 messages_received += message_list
-            
+
             num += 0 if not message_list else len(message_list)
             now = time()
             if messages_received and (num >= num_messages or (now - start) >= limit_seconds):
@@ -63,13 +64,13 @@ class Subscriber(SubscriberBase):
 
 class MessagePoller(MessagePollerBase):
 
-    def __init__(self, 
-        handler: MessageHandler, 
-        subscriber: Subscriber, 
-        publisher: Publisher, 
+    def __init__(self,
+        handler: MessageHandler,
+        subscriber: Subscriber,
+        publisher: Publisher,
         request_message_class=RequestMessage
     ):
-        self._subscriber = subscriber 
+        self._subscriber = subscriber
         self._publisher = publisher
         self._request_message_class = request_message_class
         self._handler = handler
@@ -82,15 +83,15 @@ class MessagePoller(MessagePollerBase):
                     self._send_response(message, response)
                 except Exception as e:
                     exception('Error while trying to process a message')
-                    messages.remove(message.id)  
+                    messages.remove(message.id)
             messages.delete()
-    
+
     def _send_response(self, message, response=None):
         if not response:
-            return 
+            return
         reply_queue_url = message.reply_queue_url
         if not reply_queue_url:
-            return        
+            return
         try:
             response_message = self._request_message_class(
                 body=response,

@@ -1,5 +1,5 @@
-import random 
-from time import time 
+import random
+from time import time
 
 from sqs_client.contracts import (
     RequestMessage as RequestMessageBase,
@@ -10,22 +10,22 @@ from sqs_client.contracts import (
 
 class RequestMessage(RequestMessageBase):
 
-    def __init__(self, 
-        body: str, 
-        queue_url: str, 
-        group_id: str=None, 
-        delay_seconds: int=0, 
-        reply_queue: ReplyQueue=None, 
+    def __init__(self,
+        body: str,
+        queue_url: str,
+        group_id: str=None,
+        delay_seconds: int=0,
+        reply_queue: ReplyQueue=None,
         message_attributes: dict={}
     ):
         self._request_id = str(random.getrandbits(128))
-        self._body = body 
-        self._group_id = group_id 
-        self._delay_seconds = delay_seconds 
+        self._body = body
+        self._group_id = group_id
+        self._delay_seconds = delay_seconds
         self._message_attributes = message_attributes
-        self.queue_url = queue_url 
+        self.queue_url = queue_url
         self._reply_queue = reply_queue
-    
+
     def get_params(self) -> dict:
         params = {
             'MessageBody': self._body,
@@ -34,9 +34,10 @@ class RequestMessage(RequestMessageBase):
         }
         if self._group_id:
             params['MessageGroupId'] = self._group_id
-        
+
         if self._reply_queue:
             params['MessageAttributes']['ReplyTo'] = {
+                # creation of the queue setup and thread is triggered here
                 'StringValue': self._reply_queue.get_url(),
                 'DataType': 'String'
             }
@@ -54,57 +55,57 @@ class Message(MessageBase):
     def __init__(self, message: dict):
         self.initial_time = time()
         self._message = message
-    
+
     @property
     def body(self) -> str:
         return self._message['Body']
-    
+
     @property
     def id(self) -> str:
         return self._message['MessageId']
-    
+
     @property
     def request_id(self) -> str:
         try:
             return self.attributes['RequestMessageId']['StringValue']
         except KeyError:
-            return None 
-    
-    @property    
+            return None
+
+    @property
     def reply_queue_url(self) -> str:
         try:
             return self.attributes['ReplyTo']['StringValue']
         except KeyError:
-            return None 
-            
+            return None
+
     @property
     def attributes(self) -> dict:
-        return self._message['MessageAttributes']    
+        return self._message['MessageAttributes']
 
 
 class MessageList(MessageListBase):
 
     def __init__(self, client, queue, messages):
-        self.client = client 
-        self.queue = queue 
-        self.messages = messages 
+        self.client = client
+        self.queue = queue
+        self.messages = messages
         self.read_messages = []
-    
+
     def __len__(self):
         return len(self.messages['Messages'])
-    
+
     def __iter__(self):
         return self._fetch_one()
-    
+
     def __add__(self, other_list):
         self.messages['Messages'] += other_list.messages['Messages']
         return self
-    
-    def _fetch_one(self):        
+
+    def _fetch_one(self):
         messages_id = []
         for message in self.messages['Messages']:
             if message['MessageId'] in messages_id:
-                continue            
+                continue
             messages_id.append(message['MessageId'])
             self.read_messages.append({
                 'Id': message['MessageId'],
@@ -127,9 +128,8 @@ class MessageList(MessageListBase):
         # SQS only accepts up to ten messages per request
         for entries in self._delete_chunks():
             self.client.delete_message_batch(QueueUrl=self.queue, Entries=entries)
-    
+
     def _delete_chunks(self):
         n = 10
         for i in range(0, len(self.read_messages), n):
             yield self.read_messages[i:i + n]
-    

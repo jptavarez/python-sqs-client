@@ -10,10 +10,10 @@ def build_sqs_connection(access_key, secret_key, region_name):
         region_name=region_name
     )
 
-def build_subscriber(access_key, secret_key, region_name, queue_url):
+def build_subscriber(access_key, secret_key, region_name, queue_url=None, max_number_of_messages=10):
     return Subscriber(
         sqs_connection=build_sqs_connection(access_key, secret_key, region_name),
-        queue_url=queue_url
+        queue_url=queue_url, max_number_of_messages=max_number_of_messages
     )
 
 def build_reply_queue(name, access_key, secret_key, region_name):

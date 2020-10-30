@@ -1,1 +1,3 @@
 sqs_client/__pycache__/*
+.DS_Store
+examples/config.py
