@@ -1,6 +1,7 @@
 import random 
-import threading 
-from time import time
+from threading import Thread
+from time import time, sleep
+from multiprocessing import Process
 
 from sqs_client.exceptions import ReplyTimeout
 from sqs_client.contracts import (
@@ -15,9 +16,11 @@ class ReplyQueue(ReplyQueueBase):
     def __init__(self, 
         sqs_connection: SqsConnection,
         name: str, 
-        subscriber: Subscriber, 
+        subscriber: Subscriber,
+        idle_queue_sweeper, 
         seconds_before_cleaning: int=20,
-        num_messages_before_cleaning: int=200
+        num_messages_before_cleaning: int=200,
+        heartbeat_interval_seconds=60
     ):
         self._id = None
         self._queue = None
@@ -26,13 +29,15 @@ class ReplyQueue(ReplyQueueBase):
         self._subscriber = subscriber
         self._seconds_before_cleaning = seconds_before_cleaning
         self._num_messages_before_cleaning = num_messages_before_cleaning
+        self._heartbeat_interval_seconds = heartbeat_interval_seconds
+        self._idle_queue_sweeper = idle_queue_sweeper
         self._sub_thread = None 
         self._cleaner_thread = None
         self._messages = {}
 
     def get_url(self):
         if not self._queue:
-            self._build_queue() 
+            self._create_queue() 
         return self._queue.url 
     
     def get_response_by_id(self, message_id: str, timeout: int=5) -> Message:
@@ -45,19 +50,52 @@ class ReplyQueue(ReplyQueueBase):
                 continue                 
             return message
     
-    def _build_queue(self):
+    def _create_queue(self):
         self._id = str(random.getrandbits(128))
-        self._queue = self._connection.resource.create_queue(QueueName=self._name + self._id)
+        self._queue = self._connection.resource.create_queue(
+            QueueName=self._name + self._id,
+            tags={
+                'heartbeat': str(time)
+            }
+        )
         self._start_sub_thread()
+        self._start_heartbeat()
+        self._start_idle_queue_sweeper()
+    
+    def _start_idle_queue_sweeper(self):
+        self._idle_queue_sweeper.set_name(self._name)
+        self._idle_queue_sweeper.start()
     
     def remove_queue(self):
         if self._queue:
+            self._stop_heartbeat()
             self._connection.client.delete_queue(QueueUrl=self._queue.url)
             self._queue = None
     
     def _start_sub_thread(self):
-        self._sub_thread = threading.Thread(target=self._subscribe)
+        self._sub_thread = Thread(target=self._subscribe)
         self._sub_thread.start()
+    
+    def _start_heartbeat(self):
+        self._heartbeat_process = Process(
+            target=self._heartbeat, 
+            args=(self._heartbeat_interval_seconds, self._queue.url)
+        )
+        self._heartbeat_process.start()
+    
+    def _stop_heartbeat(self):
+        self._heartbeat_process.terminate()
+        self._heartbeat_process.join()
+    
+    def _heartbeat(self, heartbeat_interval_seconds, queue_url):
+        while True:
+            sleep(heartbeat_interval_seconds)
+            self._connection.client.tag_queue(
+                QueueUrl=queue_url,
+                Tags={
+                    'heartbeat': str(time())
+                }
+            )        
     
     def _subscribe(self):
         try:
