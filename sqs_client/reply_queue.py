@@ -69,6 +69,7 @@ class ReplyQueue(ReplyQueueBase):
     def remove_queue(self):
         if self._queue:
             self._stop_heartbeat()
+            self._idle_queue_sweeper.stop()
             self._connection.client.delete_queue(QueueUrl=self._queue.url)
             self._queue = None
     
