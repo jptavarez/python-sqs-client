@@ -5,7 +5,7 @@ from hashlib import sha1
 import sys
 
 from sqs_client.message import RequestMessage
-
+from sqs_client.utils import timestamp
 
 TRIGGER_MESSAGE_BODY = "SweepingTrigger"
 
@@ -127,7 +127,7 @@ class IdleQueueSweeper:
     
     def _sweep_idle_queue(self, queue_url):
         self.print("Checking for idleness. " + queue_url)
-        if self._is_queue_idle(queue_url) and not self._is_queue_empty(queue_url):
+        if self._is_queue_idle(queue_url) and self._is_queue_empty(queue_url):
             self.print("Deleting idle queue...")
             self._connection.client.delete_queue(QueueUrl=queue_url)
         
@@ -141,15 +141,11 @@ class IdleQueueSweeper:
         return self._connection.client.list_queues(**params)
     
     def _is_queue_idle(self, queue_url):
-        try:
-            tags = self._connection.client.list_queue_tags(
-                QueueUrl=queue_url
-            )['Tags']
-            last_heartbeat = int(tags['heartbeat'])
-        except KeyError:
-            self.print("=================================================")
-            self.print(queue_url)
-        return (time() - last_heartbeat) > self._idle_queue_retention_period
+        tags = self._connection.client.list_queue_tags(
+            QueueUrl=queue_url
+        )['Tags']
+        last_heartbeat = int(tags['heartbeat'])
+        return (timestamp() - last_heartbeat) > self._idle_queue_retention_period
     
     def _is_queue_empty(self, queue_url):
         response = self._connection.client.get_queue_attributes(

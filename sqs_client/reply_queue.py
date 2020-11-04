@@ -64,6 +64,9 @@ class ReplyQueue(ReplyQueueBase):
     def _create_queue(self):        
         self._queue = self._connection.resource.create_queue(
             QueueName=self.get_name(),
+            Attributes={
+                'MessageRetentionPeriod': '60'
+            },
             tags={
                 'heartbeat': str_timestamp()
             }
