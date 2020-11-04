@@ -1,9 +1,11 @@
 import random 
+import sys
 from threading import Thread
 from time import time, sleep
 from multiprocessing import Process
 
 from sqs_client.exceptions import ReplyTimeout
+from sqs_client.utils import str_timestamp
 from sqs_client.contracts import (
     SqsConnection,
     Subscriber,
@@ -20,7 +22,7 @@ class ReplyQueue(ReplyQueueBase):
         idle_queue_sweeper, 
         seconds_before_cleaning: int=20,
         num_messages_before_cleaning: int=200,
-        heartbeat_interval_seconds=60
+        heartbeat_interval_seconds=10
     ):
         self._id = None
         self._queue = None
@@ -34,11 +36,20 @@ class ReplyQueue(ReplyQueueBase):
         self._sub_thread = None 
         self._cleaner_thread = None
         self._messages = {}
+    
+
+    def print(self, text):
+        print(text)
+        sys.stdout.flush()
 
     def get_url(self):
         if not self._queue:
             self._create_queue() 
         return self._queue.url 
+    
+    def get_name(self):
+        self._id = str(random.getrandbits(128))
+        return self._name + self._id
     
     def get_response_by_id(self, message_id: str, timeout: int=5) -> Message:
         start = time()
@@ -50,12 +61,11 @@ class ReplyQueue(ReplyQueueBase):
                 continue                 
             return message
     
-    def _create_queue(self):
-        self._id = str(random.getrandbits(128))
+    def _create_queue(self):        
         self._queue = self._connection.resource.create_queue(
-            QueueName=self._name + self._id,
+            QueueName=self.get_name(),
             tags={
-                'heartbeat': str(time)
+                'heartbeat': str_timestamp()
             }
         )
         self._start_sub_thread()
@@ -91,10 +101,11 @@ class ReplyQueue(ReplyQueueBase):
     def _heartbeat(self, heartbeat_interval_seconds, queue_url):
         while True:
             sleep(heartbeat_interval_seconds)
+            self.print('heartbeat')
             self._connection.client.tag_queue(
                 QueueUrl=queue_url,
                 Tags={
-                    'heartbeat': str(time())
+                    'heartbeat': str_timestamp()
                 }
             )        
     

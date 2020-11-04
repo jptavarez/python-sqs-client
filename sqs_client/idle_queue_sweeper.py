@@ -1,8 +1,13 @@
 from multiprocessing import Process
 from time import time, sleep
 from logging import exception
+from hashlib import sha1
+import sys
 
-TRIGGER_MESSAGE_BODY = "Sweeping Trigger"
+from sqs_client.message import RequestMessage
+
+
+TRIGGER_MESSAGE_BODY = "SweepingTrigger"
 
 class IdleQueueSweeper:
 
@@ -11,7 +16,7 @@ class IdleQueueSweeper:
         subscriber, 
         publisher,
         max_results=1000, 
-        idle_queue_retention_period=1200,
+        idle_queue_retention_period=20,
         request_message_class=RequestMessage
     ):
         self._connection = sqs_connection
@@ -20,12 +25,16 @@ class IdleQueueSweeper:
         self._max_results = max_results
         self._idle_queue_retention_period = idle_queue_retention_period
         self._request_message_class = request_message_class
+    
+    def print(self, text):
+        print(text)
+        sys.stdout.flush()
 
     def set_name(self, name):
         self._name = name
     
     def get_queue_name(self):
-        return self._name + '_sweeper'
+        return self._name + 'sweeper.fifo'
 
     def start(self):
         self._create_queue()
@@ -56,6 +65,7 @@ class IdleQueueSweeper:
         while True:
             sleep(self._idle_queue_retention_period)
             try:
+                self.print("Triggering Idle Queue Sweeper!!")
                 message = self._request_message_class(
                     body=TRIGGER_MESSAGE_BODY,
                     queue_url=self._queue_url,
@@ -67,11 +77,12 @@ class IdleQueueSweeper:
     
     def _create_queue(self):
         try:
+            self.print('Creating Idle Queue Sweeper Queue')
             self._queue_url = self._connection.resource.create_queue(
                 QueueName=self.get_queue_name(),
                 Attributes={
-                    'FifoQueue': True,
-                    'ContentBasedDeduplication': True
+                    'FifoQueue': 'true',
+                    'ContentBasedDeduplication': 'true'
                 }
             ).url
         except Exception as e:
@@ -93,17 +104,20 @@ class IdleQueueSweeper:
             messages.delete()
     
     def _publish_queues(self):
+        self.print("Publishing Queues in order to check for idleness.")
         next_token = None
         while True:
             response = self._list_queues(next_token)
             for queue_url in response['QueueUrls']:
                 self._publish_queue(queue_url)
             
-            next_token = response['NextToken']
+            next_token = response.get('NextToken')
             if not next_token:
                 break
     
     def _publish_queue(self, queue_url):
+        if queue_url == self._queue_url:
+            return
         message = self._request_message_class(
             body=queue_url,
             queue_url=self._queue_url,
@@ -112,10 +126,12 @@ class IdleQueueSweeper:
         self._publisher.send_message(message)
     
     def _sweep_idle_queue(self, queue_url):
+        self.print("Checking for idleness. " + queue_url)
         if self._is_queue_idle(queue_url) and not self._is_queue_empty(queue_url):
-            self._connection.resource.delete_queue(QueueUrl=queue_url)
+            self.print("Deleting idle queue...")
+            self._connection.client.delete_queue(QueueUrl=queue_url)
         
-    def _list_queues(self, next_token=None):
+    def _list_queues(self, next_token=''):
         params = {
             'QueueNamePrefix': self._name,
             'MaxResults': self._max_results
@@ -125,10 +141,14 @@ class IdleQueueSweeper:
         return self._connection.client.list_queues(**params)
     
     def _is_queue_idle(self, queue_url):
-        tags = self._connection.client.list_queue_tags(
-            QueueUrl=queue_url
-        )['Tags']
-        last_heartbeat = int(tags['heartbeat'])
+        try:
+            tags = self._connection.client.list_queue_tags(
+                QueueUrl=queue_url
+            )['Tags']
+            last_heartbeat = int(tags['heartbeat'])
+        except KeyError:
+            self.print("=================================================")
+            self.print(queue_url)
         return (time() - last_heartbeat) > self._idle_queue_retention_period
     
     def _is_queue_empty(self, queue_url):
