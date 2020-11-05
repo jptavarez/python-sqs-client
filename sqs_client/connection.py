@@ -4,7 +4,7 @@ from sqs_client.contracts import SqsConnection as SqsConnectionBase
 
 class SqsConnection(SqsConnectionBase):
 
-    def __init__(self, access_key: str, secret_key: str, region_name: str):
+    def __init__(self, region_name: str, access_key: str=None, secret_key: str=None):
         self._access_key = access_key 
         self._secret_key = secret_key
         self._region_name = region_name 

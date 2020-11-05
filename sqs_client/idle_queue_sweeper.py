@@ -5,23 +5,29 @@ from hashlib import sha1
 
 from sqs_client.message import RequestMessage
 from sqs_client.utils import timestamp
+from sqs_client.contracts import (
+    Publisher,
+    Subscriber,
+    SqsConnection,
+    IdleQueueSweeper as IdleQueueSweeperBase
+)
 
 TRIGGER_MESSAGE_BODY = "SweepingTrigger"
 
-class IdleQueueSweeper:
+class IdleQueueSweeper(IdleQueueSweeperBase):
 
     def __init__(self, 
-        sqs_connection, 
-        subscriber, 
-        publisher,
-        max_results=1000, 
-        idle_queue_retention_period=20,
+        sqs_connection: SqsConnection, 
+        subscriber: Subscriber, 
+        publisher: Publisher,
+        list_queues_max_results: int=1000, 
+        idle_queue_retention_period: int=600,
         request_message_class=RequestMessage
     ):
         self._connection = sqs_connection
         self._subscriber = subscriber
         self._publisher = publisher
-        self._max_results = max_results
+        self._list_queues_max_results = list_queues_max_results
         self._idle_queue_retention_period = idle_queue_retention_period
         self._request_message_class = request_message_class
         self._logger = logging.getLogger()
@@ -131,7 +137,7 @@ class IdleQueueSweeper:
     def _list_queues(self, next_token=''):
         params = {
             'QueueNamePrefix': self._name,
-            'MaxResults': self._max_results
+            'MaxResults': self._list_queues_max_results
         }
         if next_token:
             params['NextToken'] = next_token

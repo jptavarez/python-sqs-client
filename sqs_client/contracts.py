@@ -120,6 +120,20 @@ class ReplyQueue(ABC):
     def remove_queue(self):
         pass
 
+class IdleQueueSweeper(ABC):
+
+    @abstractmethod
+    def set_name(self, name):
+        pass 
+
+    @abstractmethod
+    def start(self):
+        pass 
+    
+    @abstractmethod
+    def stop(self):
+        pass 
+
 class Publisher(ABC):
 
     @abstractmethod

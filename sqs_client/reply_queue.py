@@ -12,6 +12,7 @@ from sqs_client.utils import str_timestamp
 from sqs_client.contracts import (
     SqsConnection,
     Subscriber,
+    IdleQueueSweeper,
     ReplyQueue as ReplyQueueBase,
     Message
 )
@@ -22,11 +23,11 @@ class ReplyQueue(ReplyQueueBase):
         sqs_connection: SqsConnection,
         name: str, 
         subscriber: Subscriber,
-        idle_queue_sweeper, 
+        idle_queue_sweeper: IdleQueueSweeper, 
         message_retention_period: int=60,
         seconds_before_cleaning: int=20,
         num_messages_before_cleaning: int=200,
-        heartbeat_interval_seconds=10
+        heartbeat_interval_seconds=300
     ):
         self._id = None
         self._queue = None
