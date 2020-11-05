@@ -1,5 +1,8 @@
-from sqs_client.factories import build_reply_queue, build_publisher
+import logging 
+
+from sqs_client.factories import ReplyQueueFactory, PublisherFactory
 from sqs_client.message import RequestMessage
+from sqs_client.exceptions import ReplyTimeout
 
 config = {
     "access_key": "",
@@ -8,18 +11,20 @@ config = {
     "region_name": 'us-east-1'
 }
 
-reply_queue = build_reply_queue(
+logging.basicConfig(level=logging.INFO)
+
+reply_queue = ReplyQueueFactory(
     name='reply_queue_',
     access_key=config['access_key'],
     secret_key=config['secret_key'],
     region_name=config['region_name']
-)
+).build()
 
-publisher = build_publisher(
+publisher = PublisherFactory(
     access_key=config['access_key'],
     secret_key=config['secret_key'],
     region_name=config['region_name']
-)
+).build()
 
 messages = []
 for i in range(0, 10):
@@ -33,7 +38,11 @@ for i in range(0, 10):
     messages.append(message)
 
 for message in messages:
-    response = message.get_response(timeout=5)
-    print(response.body)
+    try:
+        response = message.get_response(timeout=20)
+        print(response.body)
+    except ReplyTimeout:
+        print("Timeout")
 
-reply_queue.remove_queue()
+reply_queue.remove_queue()   
+
