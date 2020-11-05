@@ -91,6 +91,7 @@ class ReplyQueue(ReplyQueueBase):
     
     def _start_sub_thread(self):
         self._sub_thread = Thread(target=self._subscribe)
+        self._sub_thread.daemon = True
         self._sub_thread.start()
     
     def _start_heartbeat(self):
@@ -98,6 +99,7 @@ class ReplyQueue(ReplyQueueBase):
             target=self._heartbeat, 
             args=(self._heartbeat_interval_seconds, self._queue.url)
         )
+        self._heartbeat_process.daemon = True
         self._heartbeat_process.start()
     
     def _stop_heartbeat(self):

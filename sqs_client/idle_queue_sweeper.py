@@ -78,14 +78,15 @@ class IdleQueueSweeper:
                 QueueName=self.get_queue_name(),
                 Attributes={
                     'FifoQueue': 'true',
-                    'ContentBasedDeduplication': 'true'
+                    'ContentBasedDeduplication': 'true',
+                    'ReceiveMessageWaitTimeSeconds': '20' # long polling
                 }
             ).url
         except Exception as e:
             error = e.__class__.__name__
             if error != 'QueueNameExists':
                 raise e 
-            self._queue_url = self._connection.resource.get_queue_url(
+            self._queue_url = self._connection.client.get_queue_url(
                 QueueName=self.get_queue_name()
             )
         
@@ -122,7 +123,7 @@ class IdleQueueSweeper:
         self._publisher.send_message(message)
     
     def _sweep_idle_queue(self, queue_url):
-        self._logger.info("Checking for idleness. " + queue_url)
+        self._logger.info("Checking for idleness: " + queue_url)
         if self._is_queue_idle(queue_url) and self._is_queue_empty(queue_url):
             self._logger.info("Deleting idle queue...")
             self._connection.client.delete_queue(QueueUrl=queue_url)
