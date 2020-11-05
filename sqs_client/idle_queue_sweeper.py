@@ -1,8 +1,7 @@
+import logging
 from multiprocessing import Process
 from time import time, sleep
-from logging import exception
 from hashlib import sha1
-import sys
 
 from sqs_client.message import RequestMessage
 from sqs_client.utils import timestamp
@@ -25,11 +24,8 @@ class IdleQueueSweeper:
         self._max_results = max_results
         self._idle_queue_retention_period = idle_queue_retention_period
         self._request_message_class = request_message_class
+        self._logger = logging.getLogger()
     
-    def print(self, text):
-        print(text)
-        sys.stdout.flush()
-
     def set_name(self, name):
         self._name = name
     
@@ -65,7 +61,7 @@ class IdleQueueSweeper:
         while True:
             sleep(self._idle_queue_retention_period)
             try:
-                self.print("Triggering Idle Queue Sweeper!!")
+                self._logger.info("Triggering Idle Queue Sweeper")
                 message = self._request_message_class(
                     body=TRIGGER_MESSAGE_BODY,
                     queue_url=self._queue_url,
@@ -73,11 +69,11 @@ class IdleQueueSweeper:
                 )
                 self._publisher.send_message(message)
             except Exception as e:
-                exception(e)
+                self._logger.exception(e)
     
     def _create_queue(self):
         try:
-            self.print('Creating Idle Queue Sweeper Queue')
+            self._logger.info('Creating Idle Queue Sweeper Queue')
             self._queue_url = self._connection.resource.create_queue(
                 QueueName=self.get_queue_name(),
                 Attributes={
@@ -104,7 +100,7 @@ class IdleQueueSweeper:
             messages.delete()
     
     def _publish_queues(self):
-        self.print("Publishing Queues in order to check for idleness.")
+        self._logger.info("Publishing Queues in order to check for idleness.")
         next_token = None
         while True:
             response = self._list_queues(next_token)
@@ -126,9 +122,9 @@ class IdleQueueSweeper:
         self._publisher.send_message(message)
     
     def _sweep_idle_queue(self, queue_url):
-        self.print("Checking for idleness. " + queue_url)
+        self._logger.info("Checking for idleness. " + queue_url)
         if self._is_queue_idle(queue_url) and self._is_queue_empty(queue_url):
-            self.print("Deleting idle queue...")
+            self._logger.info("Deleting idle queue...")
             self._connection.client.delete_queue(QueueUrl=queue_url)
         
     def _list_queues(self, next_token=''):

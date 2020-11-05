@@ -1,8 +1,11 @@
 import random 
 import sys
+import logging
 from threading import Thread
 from time import time, sleep
 from multiprocessing import Process
+
+from multiprocessing_logging import install_mp_handler, uninstall_mp_handler
 
 from sqs_client.exceptions import ReplyTimeout
 from sqs_client.utils import str_timestamp
@@ -20,6 +23,7 @@ class ReplyQueue(ReplyQueueBase):
         name: str, 
         subscriber: Subscriber,
         idle_queue_sweeper, 
+        message_retention_period: int=60,
         seconds_before_cleaning: int=20,
         num_messages_before_cleaning: int=200,
         heartbeat_interval_seconds=10
@@ -29,6 +33,7 @@ class ReplyQueue(ReplyQueueBase):
         self._name = name
         self._connection = sqs_connection
         self._subscriber = subscriber
+        self._message_retention_period = message_retention_period
         self._seconds_before_cleaning = seconds_before_cleaning
         self._num_messages_before_cleaning = num_messages_before_cleaning
         self._heartbeat_interval_seconds = heartbeat_interval_seconds
@@ -36,11 +41,7 @@ class ReplyQueue(ReplyQueueBase):
         self._sub_thread = None 
         self._cleaner_thread = None
         self._messages = {}
-    
-
-    def print(self, text):
-        print(text)
-        sys.stdout.flush()
+        self._logger = logging.getLogger()
 
     def get_url(self):
         if not self._queue:
@@ -65,12 +66,13 @@ class ReplyQueue(ReplyQueueBase):
         self._queue = self._connection.resource.create_queue(
             QueueName=self.get_name(),
             Attributes={
-                'MessageRetentionPeriod': '60'
+                'MessageRetentionPeriod': str(self._message_retention_period)
             },
             tags={
                 'heartbeat': str_timestamp()
             }
         )
+        install_mp_handler(self._logger)       
         self._start_sub_thread()
         self._start_heartbeat()
         self._start_idle_queue_sweeper()
@@ -85,6 +87,7 @@ class ReplyQueue(ReplyQueueBase):
             self._idle_queue_sweeper.stop()
             self._connection.client.delete_queue(QueueUrl=self._queue.url)
             self._queue = None
+            uninstall_mp_handler(self._logger)
     
     def _start_sub_thread(self):
         self._sub_thread = Thread(target=self._subscribe)
@@ -104,7 +107,7 @@ class ReplyQueue(ReplyQueueBase):
     def _heartbeat(self, heartbeat_interval_seconds, queue_url):
         while True:
             sleep(heartbeat_interval_seconds)
-            self.print('heartbeat')
+            self._logger.info('Reply Queue Heartbeat')
             self._connection.client.tag_queue(
                 QueueUrl=queue_url,
                 Tags={

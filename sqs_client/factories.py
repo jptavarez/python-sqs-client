@@ -26,7 +26,7 @@ def build_idle_queue_sweeper(access_key, secret_key, region_name):
     return IdleQueueSweeper(
         sqs_connection=build_sqs_connection(access_key, secret_key, region_name),
         subscriber=build_subscriber(access_key, secret_key, region_name),
-        publisher=build_publisher(access_key, secret_key, region_name),
+        publisher=build_publisher(access_key, secret_key, region_name)
     )
 
 def build_reply_queue(name, access_key, secret_key, region_name):

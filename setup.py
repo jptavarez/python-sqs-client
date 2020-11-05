@@ -12,5 +12,5 @@ setup(
     description=(""),
     license="BSD",
     packages=["sqs_client"],
-    install_requires=['boto3'],
+    install_requires=['boto3', 'multiprocessing-logging'],
 )
