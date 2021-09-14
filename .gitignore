@@ -1,1 +1,2 @@
-sqs_client/__pycache__/*
+__pycache__/
+.idea/

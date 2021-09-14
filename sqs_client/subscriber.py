@@ -25,7 +25,9 @@ class Subscriber(SubscriberBase):
             messages = self._connection.client.receive_message(
                 QueueUrl=self._queue_url, 
                 MaxNumberOfMessages=self._max_number_of_messages,
-                MessageAttributeNames=message_attribute_names
+                MessageAttributeNames=message_attribute_names,
+                VisibilityTimeout=30,
+                WaitTimeSeconds=20
             )
             if 'Messages' in messages:
                 yield MessageList(self._connection.client, self._queue_url, messages)
