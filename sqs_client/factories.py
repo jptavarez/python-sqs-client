@@ -66,9 +66,14 @@ class SubscriberFactory(BaseFactory):
 
 class PublisherFactory(BaseFactory):
 
+    def __init__(self, *args, queue_url=None, **kwargs):
+        super().__init__(*args, **kwargs)
+        self._queue_url = queue_url
+
     def build(self):
         return Publisher(
-            sqs_connection=self._build_sqs_connection()
+            sqs_connection=self._build_sqs_connection(),
+            queue_url=self._queue_url
         )
 
 
