@@ -3,7 +3,7 @@ try:
 except ImportError:
     from distutils.core import setup
 
-version = "0.01"
+version = "0.0.2"
 setup(
     name="sqs-client",
     version=version,
