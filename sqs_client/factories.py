@@ -56,11 +56,12 @@ class SubscriberFactory(BaseFactory):
         super().__init__(*args, **kwargs)
         self._queue_url = queue_url
 
-    def build(self, max_number_of_messages=10):
+    def build(self, max_number_of_messages=10, visibility_timeout=30):
         return Subscriber(
             sqs_connection=self._build_sqs_connection(),
             queue_url=self._queue_url,
-            max_number_of_messages=max_number_of_messages
+            max_number_of_messages=max_number_of_messages,
+            visibility_timeout=visibility_timeout
         )
 
 
