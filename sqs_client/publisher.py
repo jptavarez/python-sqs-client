@@ -9,14 +9,24 @@ from sqs_client.contracts import (
 
 class Publisher(PublisherBase):
 
-    def __init__(self, sqs_connection: SqsConnection):
+    def __init__(self, sqs_connection: SqsConnection, queue_url=None):
         self._connection = sqs_connection
-        self._queue_url = None
+        self._queue_url = queue_url
+
+        if queue_url:
+            self._set_queue(queue_url)
+            self._queue = self._get_queue()
+        else:
+            self._queue = None
 
     def send_message(self, request_message: RequestMessage):
-        self._set_queue(request_message.queue_url)
         params = request_message.get_params()
-        return self._get_queue().send_message(**params)
+
+        if self._queue:
+            return self._queue.send_message(**params)
+        else:
+            self._set_queue(request_message.queue_url)
+            return self._get_queue().send_message(**params)
     
     def _get_queue(self):
         return self._connection.get_queue_resource()
@@ -38,7 +48,6 @@ class RetryPublisher(PublisherBase):
         self._retries = retries 
 
     def send_message(self, request_message: RequestMessage):
-        self._publisher.set_queue(request_message.queue_url)
         for _ in range(0, self._retries):
             try:            
                 self._publish(request_message)

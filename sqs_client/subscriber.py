@@ -10,12 +10,13 @@ from sqs_client.contracts import (
     MessagePoller as MessagePollerBase
 )
 
-class Subscriber(SubscriberBase):
 
-    def __init__(self, sqs_connection: SqsConnection, queue_url=None, max_number_of_messages=10):
+class Subscriber(SubscriberBase):
+    def __init__(self, sqs_connection: SqsConnection, queue_url=None, max_number_of_messages=10, visibility_timeout=30):
         self._connection = sqs_connection
         self._queue_url = queue_url
         self._max_number_of_messages = max_number_of_messages
+        self._visibility_timeout = visibility_timeout
     
     def set_queue(self, queue_url):
         self._queue_url = queue_url
@@ -25,7 +26,9 @@ class Subscriber(SubscriberBase):
             messages = self._connection.client.receive_message(
                 QueueUrl=self._queue_url, 
                 MaxNumberOfMessages=self._max_number_of_messages,
-                MessageAttributeNames=message_attribute_names
+                MessageAttributeNames=message_attribute_names,
+                VisibilityTimeout=self._visibility_timeout,
+                WaitTimeSeconds=20
             )
             if 'Messages' in messages:
                 yield MessageList(self._connection.client, self._queue_url, messages)
@@ -61,8 +64,8 @@ class Subscriber(SubscriberBase):
                 num = 0
                 start = now
 
-class MessagePoller(MessagePollerBase):
 
+class MessagePoller(MessagePollerBase):
     def __init__(self, 
         handler: MessageHandler, 
         subscriber: Subscriber, 
