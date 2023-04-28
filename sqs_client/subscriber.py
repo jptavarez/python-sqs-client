@@ -1,49 +1,52 @@
-from time import time
 from logging import exception
+from time import time
 
-from sqs_client.message import RequestMessage, MessageList
-from sqs_client.contracts import (
-    MessageHandler, 
-    SqsConnection,
-    Publisher,
-    Subscriber as SubscriberBase,
-    MessagePoller as MessagePollerBase
-)
+from sqs_client.contracts import MessageHandler
+from sqs_client.contracts import MessagePoller as MessagePollerBase
+from sqs_client.contracts import Publisher, SqsConnection
+from sqs_client.contracts import Subscriber as SubscriberBase
+from sqs_client.message import MessageList, RequestMessage
 
 
 class Subscriber(SubscriberBase):
-    def __init__(self, sqs_connection: SqsConnection, queue_url=None, max_number_of_messages=10, visibility_timeout=30):
+    def __init__(
+        self,
+        sqs_connection: SqsConnection,
+        queue_url=None,
+        max_number_of_messages=10,
+        visibility_timeout=30,
+    ):
         self._connection = sqs_connection
         self._queue_url = queue_url
         self._max_number_of_messages = max_number_of_messages
         self._visibility_timeout = visibility_timeout
-    
+
     def set_queue(self, queue_url):
         self._queue_url = queue_url
 
     def receive_messages(self, return_none=False, message_attribute_names=[]):
         while True:
             messages = self._connection.client.receive_message(
-                QueueUrl=self._queue_url, 
+                QueueUrl=self._queue_url,
                 MaxNumberOfMessages=self._max_number_of_messages,
                 MessageAttributeNames=message_attribute_names,
                 VisibilityTimeout=self._visibility_timeout,
-                WaitTimeSeconds=20
+                WaitTimeSeconds=20,
             )
-            if 'Messages' in messages:
+            if "Messages" in messages:
                 yield MessageList(self._connection.client, self._queue_url, messages)
             elif return_none:
-                yield None     
+                yield None
 
     def chunk(self, num_messages=500, limit_seconds=30):
         """
-            Ex.:
-                sqs_config = ....
-                subscriber = Subscriber(sqs_config)
-                for messages in subscriber.chunk(num_messages=50, limit_seconds=8):
-                    for message in messages:
-                        print(message['Body'])
-                    messages.delete()
+        Ex.:
+            sqs_config = ....
+            subscriber = Subscriber(sqs_config)
+            for messages in subscriber.chunk(num_messages=50, limit_seconds=8):
+                for message in messages:
+                    print(message['Body'])
+                messages.delete()
         """
         if num_messages < 10:
             self.max_number_of_messages = num_messages
@@ -55,10 +58,12 @@ class Subscriber(SubscriberBase):
                 messages_received = message_list
             elif message_list:
                 messages_received += message_list
-            
+
             num += 0 if not message_list else len(message_list)
             now = time()
-            if messages_received and (num >= num_messages or (now - start) >= limit_seconds):
+            if messages_received and (
+                num >= num_messages or (now - start) >= limit_seconds
+            ):
                 yield messages_received
                 messages_received = None
                 num = 0
@@ -66,41 +71,44 @@ class Subscriber(SubscriberBase):
 
 
 class MessagePoller(MessagePollerBase):
-    def __init__(self, 
-        handler: MessageHandler, 
-        subscriber: Subscriber, 
-        publisher: Publisher, 
-        request_message_class=RequestMessage
+    def __init__(
+        self,
+        handler: MessageHandler,
+        subscriber: Subscriber,
+        publisher: Publisher,
+        request_message_class=RequestMessage,
     ):
-        self._subscriber = subscriber 
+        self._subscriber = subscriber
         self._publisher = publisher
         self._request_message_class = request_message_class
         self._handler = handler
 
     def start(self):
-        for messages in self._subscriber.receive_messages(message_attribute_names=['RequestMessageId', 'ReplyTo']):
+        for messages in self._subscriber.receive_messages(
+            message_attribute_names=["RequestMessageId", "ReplyTo"]
+        ):
             for message in messages:
                 try:
                     response = self._handler.process_message(message)
                     self._send_response(message, response)
                 except Exception as e:
-                    exception('Error while trying to process a message')
-                    messages.remove(message.id)  
+                    exception("Error while trying to process a message")
+                    messages.remove(message.id)
             messages.delete()
-    
+
     def _send_response(self, message, response=None):
         if not response:
-            return 
+            return
         reply_queue_url = message.reply_queue_url
         if not reply_queue_url:
-            return        
+            return
         try:
             response_message = self._request_message_class(
                 body=response,
                 queue_url=reply_queue_url,
-                message_attributes = {
-                    'RequestMessageId': message.attributes['RequestMessageId']
-                }
+                message_attributes={
+                    "RequestMessageId": message.attributes["RequestMessageId"]
+                },
             )
             self._publisher.send_message(response_message)
         except Exception as e:

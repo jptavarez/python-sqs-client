@@ -1,13 +1,14 @@
 from sqs_client.connection import SqsConnection
-from sqs_client.subscriber import Subscriber
+from sqs_client.idle_queue_sweeper import IdleQueueSweeper
 from sqs_client.publisher import Publisher
 from sqs_client.reply_queue import ReplyQueue
-from sqs_client.idle_queue_sweeper import IdleQueueSweeper
+from sqs_client.subscriber import Subscriber
 
 
 class SqsConnectionFactory:
-
-    def __init__(self, region_name, access_key=None, secret_key=None, endpoint_url=None):
+    def __init__(
+        self, region_name=None, access_key=None, secret_key=None, endpoint_url=None
+    ):
         self._region_name = region_name
         self._access_key = access_key
         self._secret_key = secret_key
@@ -18,19 +19,18 @@ class SqsConnectionFactory:
             access_key=self._access_key,
             secret_key=self._secret_key,
             endpoint_url=self._endpoint_url,
-            region_name=self._region_name
+            region_name=self._region_name,
         )
 
 
 class BaseFactory:
-
     def __init__(
-            self,
-            region_name,
-            access_key=None,
-            secret_key=None,
-            endpoint_url=None,
-            sqs_connection_factory=SqsConnectionFactory
+        self,
+        region_name=None,
+        access_key=None,
+        secret_key=None,
+        endpoint_url=None,
+        sqs_connection_factory=SqsConnectionFactory,
     ):
         self._region_name = region_name
         self._access_key = access_key
@@ -43,15 +43,11 @@ class BaseFactory:
 
     def _build_sqs_connection(self):
         return self._sqs_connection_factory(
-            self._region_name,
-            self._access_key,
-            self._secret_key,
-            self._endpoint_url
+            self._region_name, self._access_key, self._secret_key, self._endpoint_url
         ).build()
 
 
 class SubscriberFactory(BaseFactory):
-
     def __init__(self, *args, queue_url=None, **kwargs):
         super().__init__(*args, **kwargs)
         self._queue_url = queue_url
@@ -61,38 +57,35 @@ class SubscriberFactory(BaseFactory):
             sqs_connection=self._build_sqs_connection(),
             queue_url=self._queue_url,
             max_number_of_messages=max_number_of_messages,
-            visibility_timeout=visibility_timeout
+            visibility_timeout=visibility_timeout,
         )
 
 
 class PublisherFactory(BaseFactory):
-
     def __init__(self, *args, queue_url=None, **kwargs):
         super().__init__(*args, **kwargs)
         self._queue_url = queue_url
 
     def build(self):
         return Publisher(
-            sqs_connection=self._build_sqs_connection(),
-            queue_url=self._queue_url
+            sqs_connection=self._build_sqs_connection(), queue_url=self._queue_url
         )
 
 
 class ReplyQueueFactory(BaseFactory):
-
     def __init__(
-            self,
-            *args,
-            name='reply_queue_',
-            message_retention_period=60,
-            seconds_before_cleaning=20,
-            num_messages_before_cleaning=200,
-            heartbeat_interval_seconds=300,
-            list_queues_max_results=1000,
-            idle_queue_retention_period=600,
-            subscriber_factory=SubscriberFactory,
-            publisher_factory=PublisherFactory,
-            **kwargs
+        self,
+        *args,
+        name="reply_queue_",
+        message_retention_period=60,
+        seconds_before_cleaning=20,
+        num_messages_before_cleaning=200,
+        heartbeat_interval_seconds=60,
+        list_queues_max_results=1000,
+        idle_queue_retention_period=120,
+        subscriber_factory=SubscriberFactory,
+        publisher_factory=PublisherFactory,
+        **kwargs
     ):
         super().__init__(*args, **kwargs)
         self._name = name
@@ -110,7 +103,8 @@ class ReplyQueueFactory(BaseFactory):
             name=self._name,
             sqs_connection=self._build_sqs_connection(),
             subscriber=self._build_subscriber(),
-            idle_queue_sweeper=self._build_idle_queue_sweeper()
+            idle_queue_sweeper=self._build_idle_queue_sweeper(),
+            heartbeat_interval_seconds=self._heartbeat_interval_seconds,
         )
 
     def _build_idle_queue_sweeper(self):
@@ -119,21 +113,15 @@ class ReplyQueueFactory(BaseFactory):
             subscriber=self._build_subscriber(),
             publisher=self._build_publisher(),
             list_queues_max_results=self._list_queues_max_results,
-            idle_queue_retention_period=self._idle_queue_retention_period
+            idle_queue_retention_period=self._idle_queue_retention_period,
         )
 
     def _build_subscriber(self):
         return self._subscriber_factory(
-            self._region_name,
-            self._access_key,
-            self._secret_key,
-            self._endpoint_url
+            self._region_name, self._access_key, self._secret_key, self._endpoint_url
         ).build()
 
     def _build_publisher(self):
         return self._publisher_factory(
-            self._region_name,
-            self._access_key,
-            self._secret_key,
-            self._endpoint_url
+            self._region_name, self._access_key, self._secret_key, self._endpoint_url
         ).build()

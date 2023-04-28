@@ -1,4 +1,2 @@
-
-
 class ReplyTimeout(Exception):
     pass

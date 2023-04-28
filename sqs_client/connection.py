@@ -4,8 +4,13 @@ from sqs_client.contracts import SqsConnection as SqsConnectionBase
 
 
 class SqsConnection(SqsConnectionBase):
-
-    def __init__(self, region_name: str, access_key: str = None, secret_key: str = None, endpoint_url: str = None):
+    def __init__(
+        self,
+        region_name: str = None,
+        access_key: str = None,
+        secret_key: str = None,
+        endpoint_url: str = None,
+    ):
         self._access_key = access_key
         self._secret_key = secret_key
         self._endpoint_url = endpoint_url
@@ -32,16 +37,14 @@ class SqsConnection(SqsConnectionBase):
             aws_secret_access_key=self._secret_key,
         )
         self.resource = session.resource(
-            'sqs',
-            endpoint_url=self._endpoint_url,
-            region_name=self._region_name
+            "sqs", endpoint_url=self._endpoint_url, region_name=self._region_name
         )
 
     def _load_client(self):
         self.client = boto3.client(
-            'sqs',
+            "sqs",
             aws_access_key_id=self._access_key,
             aws_secret_access_key=self._secret_key,
             endpoint_url=self._endpoint_url,
-            region_name=self._region_name
+            region_name=self._region_name,
         )
