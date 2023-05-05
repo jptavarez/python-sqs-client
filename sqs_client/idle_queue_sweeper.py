@@ -57,18 +57,24 @@ class IdleQueueSweeper(IdleQueueSweeperBase):
         self._sweeper_process.start()
 
     def _trigger_sweeper(self):
+        minutes = list(range(0, 60, 2))
         while True:
-            sleep(self._idle_queue_retention_period)
-            try:
-                self._logger.info("Triggering Idle Queue Sweeper")
-                message = self._request_message_class(
-                    body=TRIGGER_MESSAGE_BODY,
-                    queue_url=self._queue_url,
-                    group_id=TRIGGER_MESSAGE_BODY,
-                )
-                self._publisher.send_message(message)
-            except Exception as e:
-                self._logger.exception(e)
+            now = datetime.now()
+            if now.minute in minutes and now.second == 0:
+                self._sweeper()
+            sleep(1)
+            
+    def _sweeper(self):
+        try:
+            self._logger.info("Triggering Idle Queue Sweeper at " + str(datetime.now()))
+            message = self._request_message_class(
+                body=TRIGGER_MESSAGE_BODY,
+                queue_url=self._queue_url,
+                group_id=TRIGGER_MESSAGE_BODY,
+            )
+            self._publisher.send_message(message)
+        except Exception as e:
+            self._logger.exception(e)
 
     def _create_queue(self):
         try:
