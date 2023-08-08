@@ -1,10 +1,12 @@
 import random
 from time import time
 
-from sqs_client.contracts import Message as MessageBase
-from sqs_client.contracts import MessageList as MessageListBase
-from sqs_client.contracts import ReplyQueue as ReplyQueue
-from sqs_client.contracts import RequestMessage as RequestMessageBase
+from sqs_client.contracts import (
+    Message as MessageBase,
+    MessageList as MessageListBase,
+    ReplyQueue as ReplyQueue,
+    RequestMessage as RequestMessageBase
+)
 
 
 class RequestMessage(RequestMessageBase):

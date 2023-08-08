@@ -1,5 +1,5 @@
 import logging
-import random
+from uuid import uuid4
 from multiprocessing import Process
 from threading import Thread
 from time import sleep, time
@@ -14,6 +14,12 @@ from sqs_client.utils import str_timestamp
 
 
 class ReplyQueue(ReplyQueueBase):
+    """
+    A class representing a reply queue used for receiving responses from a Simple Queue Service (SQS).
+
+    The ReplyQueue class provides functionalities to manage a reply queue, receive and store messages,
+    and retrieve responses by message ID.
+    """
     def __init__(
         self,
         sqs_connection: SqsConnection,
@@ -25,7 +31,7 @@ class ReplyQueue(ReplyQueueBase):
         num_messages_before_cleaning: int = 200,
         heartbeat_interval_seconds=300,
     ):
-        self._id = None
+        self._id = str(uuid4())
         self._queue = None
         self._name = name
         self._connection = sqs_connection
@@ -40,16 +46,41 @@ class ReplyQueue(ReplyQueueBase):
         self._messages = {}
         self._logger = logging.getLogger()
 
-    def get_url(self):
+    def get_url(self) -> str:
+        """
+        Returns the URL associated with the queue, 
+        after checking if the queue exists or creating a new one if needed.
+    
+        Returns:
+            str: The queue URL.
+        """
         if not self._queue:
             self._create_queue()
         return self._queue.url
 
-    def get_name(self):
-        self._id = str(random.getrandbits(128))
+    def get_name(self) -> str:
+        """
+        Returns the combined name of the queue and its unique identifier.
+        
+        Returns:
+            str: The combined name.
+        """
         return self._name + self._id
 
     def get_response_by_id(self, message_id: str, timeout: int = 5) -> Message:
+        """
+        Retrieve a response message by its ID.
+        
+        Args:
+            message_id (str): The ID of the response message.
+            timeout (int, optional): Timeout in seconds. Defaults to 5.
+        
+        Returns:
+            Message: The response message.
+        
+        Raises:
+            ReplyTimeout: If the response retrieval times out.
+        """
         start = time()
         while True:
             message = self._messages.get(message_id)
@@ -60,6 +91,12 @@ class ReplyQueue(ReplyQueueBase):
             return message
 
     def _create_queue(self):
+        """
+        Create a new queue and initialize various components for its maintenance.
+
+        This method creates a new queue using the SQS connection, sets its attributes such as
+        message retention period, and starts necessary threads for managing the queue.
+        """
         self._queue = self._connection.resource.create_queue(
             QueueName=self.get_name(),
             Attributes={"MessageRetentionPeriod": str(self._message_retention_period)},
@@ -72,10 +109,21 @@ class ReplyQueue(ReplyQueueBase):
         self._start_sub_thread()
 
     def _start_idle_queue_sweeper(self):
+        """
+        Start the idle queue sweeper for maintaining the queue's cleanliness.
+
+        This method sets the queue's name for the idle queue sweeper and starts the sweeper thread.
+        """
         self._idle_queue_sweeper.set_name(self._name)
         self._idle_queue_sweeper.start()
 
     def remove_queue(self):
+        """
+        Remove the queue and associated components.
+
+        This method stops the heartbeat, idle queue sweeper, deletes the queue using the SQS connection,
+        and uninstalls the multiprocess handler from the logger.
+        """
         if self._queue:
             self._stop_heartbeat()
             self._idle_queue_sweeper.stop()
@@ -84,20 +132,40 @@ class ReplyQueue(ReplyQueueBase):
             uninstall_mp_handler(self._logger)
 
     def _start_sub_thread(self):
+        """
+        Start the subscription thread for receiving messages.
+
+        This method creates and starts a new thread to handle message subscription and processing.
+        """
         self._sub_thread = Thread(target=self._subscribe)
         self._sub_thread.daemon = True
         self._sub_thread.start()
 
     def _start_heartbeat(self):
+        """
+        Start the heartbeat process for queue health monitoring.
+
+        This method creates and starts a new process to handle sending periodic heartbeat messages.
+        """
         self._heartbeat_process = Process(target=self._heartbeat)
         self._heartbeat_process.daemon = True
         self._heartbeat_process.start()
 
     def _stop_heartbeat(self):
+        """
+        Stop the heartbeat process.
+
+        This method terminates the heartbeat process and waits for its completion.
+        """
         self._heartbeat_process.terminate()
         self._heartbeat_process.join()
 
     def _heartbeat(self):
+        """
+        Periodically send heartbeat messages to the queue to monitor its health.
+
+        This method sends heartbeat messages to the queue at regular intervals to indicate that the queue is active.
+        """
         self._logger.info(
             "heartbeat_interval_seconds " + str(self._heartbeat_interval_seconds)
         )
@@ -113,6 +181,11 @@ class ReplyQueue(ReplyQueueBase):
             sleep(self._heartbeat_interval_seconds)
 
     def _subscribe(self):
+        """
+        Start receiving messages from the queue.
+
+        This method initiates the process of receiving and processing messages from the queue.
+        """
         try:
             self._receive_messages()
         except Exception as e:
@@ -122,6 +195,12 @@ class ReplyQueue(ReplyQueueBase):
                 raise e
 
     def _receive_messages(self):
+        """
+        Receive and process messages from the queue.
+
+        This method sets up the subscriber to the queue and continuously receives messages from the queue,
+        processing and storing them in the `_messages` dictionary.
+        """
         self._subscriber.set_queue(self._queue.url)
         while True:
             qty_messages = 0
@@ -137,6 +216,12 @@ class ReplyQueue(ReplyQueueBase):
             self._clean_old_messages()
 
     def _clean_old_messages(self):
+        """
+        Clean up old messages from the `_messages` dictionary.
+
+        This method removes messages from the `_messages` dictionary that have exceeded the configured
+        time limit for cleaning.
+        """
         messages_to_delete = []
         for message in self._messages.values():
             current_time = time()
